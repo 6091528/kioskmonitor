@@ -13,7 +13,7 @@ Kiosk na 1 monitor.w Chromium tylko strona oczekiwania na sieć, prawy ekran wy�
 │                                                                  │
 │  Wirtualny desktop 3840×1080 (xrandr --right-of)                 │
 │               ┌──────────────────────────────┐                   │
-│               │  LibreOffice Impress --show  │	           │
+│               │  LibreOffice Impress --show  │	               │
 │               │  HDMI-1  (1920,0–3840×1080)  │		   │ 	
 │               │  terminal_live.pptx          │                   │
 │  	        └──────────────────────────────┘                   │
