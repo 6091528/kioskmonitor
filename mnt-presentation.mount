@@ -1,0 +1,14 @@
+[Unit]
+Description=SMB Share z prezentacją kiosku
+After=network-online.target
+Wants=network-online.target
+
+[Mount]
+# Zmień na adres IP i nazwę udziału swojego serwera SMB:
+What=//192.168.x.x/nazwa-udzialu
+Where=/mnt/presentation
+Type=cifs
+Options=credentials=/etc/samba/kiosk-credentials,uid=kiosk,gid=kiosk,iocharset=utf8,vers=3.0,_netdev
+
+[Install]
+WantedBy=multi-user.target

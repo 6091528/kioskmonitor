@@ -1,0 +1,17 @@
+[Unit]
+Description=Enable Wake on LAN on all ethernet interfaces
+After=network.target
+
+[Service]
+Type=oneshot
+# Włącza WoL (g = magic packet) na każdym interfejsie sieciowym
+ExecStart=/bin/bash -c '\
+  for iface in $(ls /sys/class/net | grep -v lo); do \
+    ethtool -s "$iface" wol g 2>/dev/null \
+      && echo "WoL enabled: $iface" \
+      || true; \
+  done'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

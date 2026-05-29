@@ -1,0 +1,15 @@
+  GNU nano 8.4                                                                          /etc/cron.d/kiosk-schedule                                                                                    
+# /etc/cron.d/kiosk-schedule
+# Harmonogram kiosku WS-FE035
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# Wyłącz kiosk w piątek  o 22:00 (planowe wyłączenie)
+0 22 * * * root /sbin/shutdown -h now
+
+# Jeśli kiosk uruchomi się po utracie prądu w oknie wyłączenia (sob  06:00 - pod 6:00 ),
+# wyłącz go w ciągu max. 5 minut. Gdy kiosk jest normalnie wyłączony, wpisy nie działają.
+
+*/5 * * * 0,6 root /sbin/shutdown -h now
+*/5 0-5 * * 1-5 root /sbin/shutdown -h now
+*/5 22-23 * * 1-5 root /sbin/shutdown -h now
