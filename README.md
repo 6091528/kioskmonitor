@@ -7,22 +7,31 @@ Kiosk na 1 monitor. Chromium wyświetla stronę oczekiwania na sieć, a LibreOff
 ## Architektura
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                          kiosk.service                       │
-│                    (xinit + openbox — tty7)                  │
-│                                                              │
-│  Jeden monitor 1920×1080, bez rozszerzonego pulpitu          │
-│               ┌───────────────────────────────────┐          │
-│               │  LibreOffice Impress --show       │          │
-│               │  terminal_live.pptx               │          │
-│               └───────────────────────────────────┘          │
-│                       ▲          ▲                         │
-│            kiosk-manager.sh      presentation-manager.sh   │
-└──────────────────────────────────────────────────────────────┘
-                                      ▲
-                      /mnt/presentation (CIFS/SMB) mounted by script
-                                      ▲
-                      //192.168.40.201/DatyFirmowe
++-----------------------------------------------------------------------+
+|                       Kiosk 1-ekranowy / X11 na tty7                   |
+|                                                                       |
+|  +----------------------+   +--------------------------------------+  |
+|  | kiosk.service        |   | presentation-manager.sh              |  |
+|  | xinit + openbox      |   | - montuje SMB                        |  |
+|  |                      |   | - synchronizuje czcionki             |  |
+|  |                      |   | - uruchamia LibreOffice Impress      |  |
+|  +----------+-----------+   +------------------+-------------------+  |
+|             |                                 |                       |
+|             |                                 v                       |
+|             |                    +-------------------------------+    |
+|             |                    | LibreOffice Impress           |    |
+|             |                    | terminal_live.pptx            |    |
+|             |                    +----------------+--------------+    |
+|             |                                      |                   |
+|             |                                      v                   |
+|  +----------------------+       +--------------------------------+   |
+|  | Chromium             |       | /mnt/presentation              |   |
+|  | waiting.html         |       | (CIFS/SMB)                     |   |
+|  | fullscreen           |       +----------------+---------------+   |
+|  +----------------------+                        |                   |
+|                                                  v                   |
+|                                       //192.168.40.201/DatyFirmowe  |
++-----------------------------------------------------------------------+
 ```
 
 ## Pliki projektu
