@@ -1,5 +1,5 @@
 #!/bin/bash
-# presentation-manager.sh — prawy ekran: prezentacja PowerPoint z udziału SMB
+# presentation-manager.sh — obsługa prezentacji PowerPoint z udziału SMB
 #
 # Działanie:
 #   1. Czeka na zamontowanie udziału SMB
@@ -10,13 +10,20 @@
 #   5. Co 5 sekund sprawdza, czy plik się zmienił — jeśli tak, restartuje pokaz
 
 SMB_MOUNT="/mnt/presentation"
-SMB_SOURCE="//192.168.40.201/DatyFirmowe/ALS"
+SMB_SOURCE="//192.168.40.201/DatyFirmowe"
 SMB_OPTS="credentials=/etc/samba/kiosk-credentials,uid=kiosk,gid=kiosk,vers=3.0"
 PRESENTATION_FILE="$SMB_MOUNT/terminal_live.pptx"
 # Lokalna kopia PPTX — LibreOffice otwiera ten plik zamiast pliku z SMB.
 # Dzięki temu SMB nie jest blokowany i można nadpisać terminal_live.pptx
 # w dowolnej chwili z innego komputera (Windows/macOS/Linux).
 LOCAL_PRESENTATION="/tmp/kiosk-live.pptx"
+
+# Konfiguracja ekranu: szerokość używana do rozróżnienia widocznego obszaru od obszaru ukrytego
+ONE_SCREEN=${ONE_SCREEN:-1}
+SCREEN_WIDTH=${SCREEN_WIDTH:-${RES_W:-1920}}
+RES_W=${RES_W:-$SCREEN_WIDTH}
+RES_H=${RES_H:-1080}
+OFFSCREEN_X=$((SCREEN_WIDTH * 2))
 
 CURRENT_MTIME=""
 LO_PID=""
@@ -44,10 +51,10 @@ console_watchdog() {
         for _wid in $(xdotool search --class soffice --onlyvisible 2>/dev/null); do
             _wx=$(xdotool getwindowgeometry "$_wid" 2>/dev/null \
                   | awk '/Position:/{split($2,a,","); print a[1]+0}')
-            if [ "${_wx:-0}" -lt 1920 ]; then
+            if [ "${_wx:-0}" -lt "$SCREEN_WIDTH" ]; then
                 wmctrl -i -r "$_wid" -b remove,above 2>/dev/null
                 wmctrl -i -r "$_wid" -b add,below    2>/dev/null
-                xdotool windowmove --sync "$_wid" 4000 0 2>/dev/null
+                xdotool windowmove --sync "$_wid" "$OFFSCREEN_X" 0 2>/dev/null
                 echo "[watchdog] Konsola ukryta (WID=$_wid, x=${_wx:-?})"
             fi
         done
@@ -92,9 +99,9 @@ XCUEOF
     echo "[presentation-manager] LibreOffice Impress uruchomiony (PID=$LO_PID)"
 
     # Obsłuż wszystkie okna LO wg pozycji:
-    #   x >= 1920 (prawy ekran)  → okno pokazu slajdów → fullscreen
-    #   x <  1920 (lewy ekran)   → konsola prezentacji → zminimalizuj
-    # Fallback po 5s: przenieś pierwsze znalezione okno na prawy ekran
+    #   x >= SCREEN_WIDTH  → okno pokazu slajdów → fullscreen
+    #   x <  SCREEN_WIDTH  → konsola prezentacji → przeniesienie poza obszar widoczny
+    # Fallback po 5s: przenieś pierwsze znalezione okno do widocznego obszaru
     (
         for _i in $(seq 1 30); do
             sleep 1
@@ -106,7 +113,7 @@ XCUEOF
             for WID in $WIDS; do
                 WIN_X=$(xdotool getwindowgeometry "$WID" 2>/dev/null \
                         | awk '/Position:/{split($2,a,","); print a[1]+0}')
-                if [ "${WIN_X:-0}" -ge 1920 ]; then
+                if [ "${WIN_X:-0}" -ge "$SCREEN_WIDTH" ]; then
                     PRES_WID=$WID
                 fi
                 # Konsola (x<1920) obsługiwana przez console_watchdog()
@@ -114,20 +121,22 @@ XCUEOF
 
             if [ -n "$PRES_WID" ]; then
                 wmctrl -i -r "$PRES_WID" -b add,fullscreen 2>/dev/null
-                echo "[presentation-manager] Pokaz fullscreen na prawym ekranie (próba $_i)"
+                echo "[presentation-manager] Pokaz fullscreen (próba $_i)"
                 break
             fi
 
-            # Fallback: po 5s nadal brak okna na prawym ekranie → przenieś pierwsze
+            # Fallback: po 5s nadal brak okna do fullscreen → przenieś pierwsze
             if [ "$_i" -ge 5 ]; then
                 FIRST_WID=$(echo "$WIDS" | head -1)
                 if [ -n "$FIRST_WID" ]; then
                     wmctrl -i -r "$FIRST_WID" -b remove,fullscreen 2>/dev/null
                     sleep 0.3
-                    xdotool windowmove --sync "$FIRST_WID" 1920 0
-                    xdotool windowsize --sync "$FIRST_WID" 1920 1080
+                    # Jeśli tryb jednokanałowy — ustaw na 0,0
+                    TARGET_X=0
+                    xdotool windowmove --sync "$FIRST_WID" "$TARGET_X" 0
+                    xdotool windowsize --sync "$FIRST_WID" "$RES_W" "$RES_H"
                     wmctrl -i -r "$FIRST_WID" -b add,fullscreen 2>/dev/null
-                    echo "[presentation-manager] Fallback: przeniesiono na prawy ekran (próba $_i)"
+                    echo "[presentation-manager] Fallback: przeniesiono okno (próba $_i, x=$TARGET_X)"
                     break
                 fi
             fi
@@ -206,7 +215,7 @@ while true; do
         CURRENT_MTIME="$NEW_MTIME"
         start_lo
         # Po 5 s wyślij sygnał do kiosk-manager.sh — restartuje Chromium po tym jak LO
-        # zakończy ładowanie i ustawi okno pokazu na prawym ekranie
+        # zakończy ładowanie i ustawi okno pokazu
         ( sleep 5
           touch /tmp/kiosk-chromium-restart
           echo "[presentation-manager] Sygnał restart Chromium wysłany"

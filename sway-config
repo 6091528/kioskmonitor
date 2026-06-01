@@ -1,39 +1,32 @@
-# Konfiguracja sway dla kiosku dwuekranowego
+# Konfiguracja sway dla kiosku jednoekranowego
 # Plik docelowy: /home/kiosk/.config/sway/config
 #
-# Nazwy wyjść wideo wykryj BEZ uruchomionego sway (działa zawsze jako root):
+# Nazwę wyjścia wideo wykryj BEZ uruchomionego sway (działa zawsze jako root):
 #   for p in /sys/class/drm/card*-*; do echo "$(basename $p | sed 's/card[0-9]*-//'): $(cat $p/status)"; done
 #
 # lub gdy sway/kiosk JUŻ działa:
 #   WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/kiosk wlr-randr
 #
-# Wpisz właściwe nazwy poniżej:
+# Wpisz właściwą nazwę wyjścia HDMI poniżej:
 
-set $OUTPUT_LEFT  DP-1
-set $OUTPUT_RIGHT HDMI-1
+set $OUTPUT HDMI-1
 
-# --- Wyjścia wideo ---
+# --- Wyjście wideo ---
 output * bg #000000 solid_color
 
 # Opcjonalnie: rotacja per-wyjście (odkomentuj jeśli wymagana)
-# output $OUTPUT_LEFT  transform 270
-# output $OUTPUT_RIGHT transform 270
+# output $OUTPUT transform 270
 
-# Przypisanie workspace do ekranów
-workspace 1 output $OUTPUT_LEFT
-workspace 2 output $OUTPUT_RIGHT
+# Przypisanie workspace do ekranu
+workspace 1 output $OUTPUT
 
-# --- Przypisanie aplikacji do workspaces ---
-# Chromium (prawy ekran — workspace 2)
-# --app=URL generuje app_id: "chrome-<hash>-Default" — używamy regex
-assign [app_id="~^chrome"] workspace 2
-for_window [app_id="~^chrome"] move to workspace 2, fullscreen enable
-
-# Prezentacja LibreOffice Impress (lewy ekran — workspace 1)
-# LO zawsze otwiera się na workspace 1 — assign to potwierdza
-assign [app_id="soffice"]            workspace 1
+# --- Przypisanie aplikacji do workspace 1 ---
+# Wszystkie aplikacje będą działać na jednym ekranie.
+assign [app_id="~^chrome"] workspace 1
+assign [app_id="soffice"] workspace 1
 assign [class="libreoffice-impress"] workspace 1
-for_window [app_id="soffice"]            fullscreen enable
+for_window [app_id="~^chrome"] fullscreen enable
+for_window [app_id="soffice"] fullscreen enable
 for_window [class="libreoffice-impress"] fullscreen enable
 # Jeśli powyższe nie działają, sprawdź rzeczywistą klasę:
 #   WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/kiosk swaymsg -t get_tree | grep -E 'app_id|class'

@@ -1,5 +1,5 @@
 #!/bin/bash
-# kiosk-manager.sh — konfiguracja X11 + lewy ekran: Chromium
+# kiosk-manager.sh — konfiguracja X11 + Chromium
 # Plik docelowy: /home/kiosk/kiosk-manager.sh
 
 # Jawnie ustawiamy HOME — serwis może startować jako root (xinit bez User=kiosk),
@@ -11,10 +11,11 @@ KIOSK_HOST="diluals31"
 KIOSK_URL="http://diluals31/terminal/ift/5/DE/index"
 WAITING_PAGE="file:///home/kiosk/waiting.html"
 
-OUTPUT_LEFT="DP-1"
-OUTPUT_RIGHT="HDMI-1"
+OUTPUT_LEFT="HDMI-1"
 RES_W=1920
 RES_H=1080
+# Domyślnie tryb jednokanałowy (jeden monitor)
+ONE_SCREEN=${ONE_SCREEN:-1}
 
 # ─── Niewidoczny kursor ──────────────────────────────────────────────────────
 # Tworzymy motyw XCursor (1x1 px, ARGB 0x00000000) i eksportujemy XCURSOR_THEME
@@ -33,12 +34,23 @@ export XCURSOR_SIZE=1
 
 
 
-# Dual-screen rozszerzony: lewy ekran primary, prawy po prawej
+# Pojedynczy ekran: ustawiamy monitor główny jako primary
 # --auto wykrywa tryb automatycznie (bezpieczniejsze niż --mode 1920x1080)
 xrandr --output "$OUTPUT_LEFT" --auto --primary --pos 0x0
-xrandr --output "$OUTPUT_RIGHT" --auto --right-of "$OUTPUT_LEFT"
-# Rozszerz wirtualny framebuffer 200 px poniżej ekranów — kursor trafi w ten obszar
-# i nie będzie widoczny na żadnym fizycznym monitorze (bez potrzeby dodatkowych pakietów)
+
+# Wykryj aktualną rozdzielczość ekranu dla wyjścia HDMI-1
+read RES_W RES_H < <(xrandr | awk -v out="$OUTPUT_LEFT" '$1==out && / connected/ { if (match($0, /([0-9]+)x([0-9]+)\+[0-9]+\+[0-9]+/, a)) print a[1], a[2]; exit }')
+if [ -z "$RES_W" ] || [ -z "$RES_H" ]; then
+    RES_W=1920
+    RES_H=1080
+    echo "[kiosk-manager] Nie wykryto rozdzielczości, używam domyślnej ${RES_W}x${RES_H}"
+else
+    echo "[kiosk-manager] Wykryto rozdzielczość wyjścia $OUTPUT_LEFT: ${RES_W}x${RES_H}"
+fi
+export RES_W RES_H
+
+# Ustaw bufor X11 większy niż rzeczywista szerokość ekranu,
+# aby można było przenieść ukryte okna poza obszar widoczny.
 xrandr --fb "$((RES_W * 2))x$((RES_H + 200))"
 echo "[kiosk-manager] Konfiguracja xrandr:"
 xrandr | grep -E "connected|[0-9]+x[0-9]+\+"
@@ -78,7 +90,7 @@ XCUEOF
 
 # ─── Start aplikacji ─────────────────────────────────────────────────────────
 
-# Uruchom menedżera prezentacji w tle (prawy ekran)
+# Uruchom menedżera prezentacji w tle
 /home/kiosk/presentation-manager.sh &
 
 # Watchdog sesji: ukrywa okna konsoli LibreOffice przez cały czas trwania sesji X.
@@ -86,20 +98,18 @@ XCUEOF
 (
     while sleep 0.4; do
         for _wid in $(xdotool search --class soffice --onlyvisible 2>/dev/null); do
-            _wx=$(xdotool getwindowgeometry "$_wid" 2>/dev/null \
-                  | awk '/Position:/{split($2,a,","); print a[1]+0}')
-            if [ "${_wx:-0}" -lt 1920 ]; then
-                wmctrl -i -r "$_wid" -b remove,above 2>/dev/null
-                wmctrl -i -r "$_wid" -b add,below    2>/dev/null
-                xdotool windowmove --sync "$_wid" 4000 0 2>/dev/null
-                echo "[kiosk-manager/watchdog] Konsola LO ukryta (WID=$_wid, x=${_wx:-?})"
-            fi
+                _wx=$(xdotool getwindowgeometry "$_wid" 2>/dev/null \
+                      | awk '/Position:/{split($2,a,","); print a[1]+0}')
+                # ukryj konsolę jeśli znajduje się na lewym ekranie
+                if [ "${_wx:-0}" -lt "$RES_W" ]; then
+                    wmctrl -i -r "$_wid" -b remove,above 2>/dev/null
+                    wmctrl -i -r "$_wid" -b add,below    2>/dev/null
+                    xdotool windowmove --sync "$_wid" $((RES_W * 2)) 0 2>/dev/null
+                    echo "[kiosk-manager/watchdog] Konsola LO ukryta (WID=$_wid, x=${_wx:-?})"
+                fi
         done
     done
 ) &
-
-# ─── START PREZENTACJI ───────────────────────────────────────────────────────
-/home/kiosk/presentation-manager.sh &
 
 # ─── WAITING SCREEN ──────────────────────────────────────────────────────────
 chromium --app="$WAITING_PAGE" \
@@ -141,10 +151,10 @@ wait "$CHROMIUM_PID" 2>/dev/null
         for _wid in $(xdotool search --class soffice --onlyvisible 2>/dev/null); do
             _wx=$(xdotool getwindowgeometry "$_wid" 2>/dev/null \
                   | awk '/Position:/{split($2,a,","); print a[1]+0}')
-            if [ "${_wx:-0}" -lt 1920 ]; then
+            if [ "${_wx:-0}" -lt "$RES_W" ]; then
                 wmctrl -i -r "$_wid" -b remove,above 2>/dev/null
                 wmctrl -i -r "$_wid" -b add,below    2>/dev/null
-                xdotool windowmove --sync "$_wid" 4000 0 2>/dev/null
+                xdotool windowmove --sync "$_wid" $((RES_W * 2)) 0 2>/dev/null
             fi
         done
     done

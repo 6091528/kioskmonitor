@@ -1,5 +1,5 @@
 [Unit]
-Description=Kiosk Dwuekranowy — Instrukcje + Prezentacja
+Description=Kiosk Jednoekranowy — Instrukcje + Prezentacja
 After=systemd-user-sessions.service
 
 [Service]

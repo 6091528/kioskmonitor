@@ -7,8 +7,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Wyłącz kiosk w piątek  o 22:00 (planowe wyłączenie)
 0 22 * * * root /sbin/shutdown -h now
 
-# Jeśli kiosk uruchomi się po utracie prądu w oknie wyłączenia (sob  06:00 - pod 6:00 ),
-# wyłącz go w ciągu max. 5 minut. Gdy kiosk jest normalnie wyłączony, wpisy nie działają.
+# Jeśli kiosk uruchomi się po utracie prądu, wpisy cron nadal będą wymuszać wyłączenie
+# zgodnie z harmonogramem: w weekendy co 5 minut przez całą dobę, w dni robocze od 22:00 do 05:59.
 
 */5 * * * 0,6 root /sbin/shutdown -h now
 */5 0-5 * * 1-5 root /sbin/shutdown -h now
