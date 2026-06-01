@@ -180,7 +180,9 @@ systemctl disable mnt-presentation.mount
 systemctl stop mnt-presentation.mount
 ```
 
-### 4. Wykryj nazwy wyjść wideo
+### 4. Sprawdź nazwę wyjścia wideo dla pojedynczego ekranu
+
+W przypadku jednego monitora nadal musisz znać jego X11-ową nazwę wyjścia, aby ustawić go jako `OUTPUT_LEFT` w `kiosk-manager.sh`.
 
 ```bash
 for p in /sys/class/drm/card*-*; do
@@ -198,6 +200,8 @@ Ustaw właściwą nazwę wyjścia w `kiosk-manager.sh`:
 ```bash
 OUTPUT_LEFT="HDMI-1"    # główny monitor HDMI
 ```
+
+To nie jest wykrywanie wielu ekranów — to potwierdzenie, że pojedynczy monitor jest widoczny jako `HDMI-1` (lub inna nazwa) w X11, zanim zostanie skonfigurowany i użyta jego rozdzielczość.
 
 ### 5. Skopiuj pliki konfiguracyjne i uruchom serwisy
 
@@ -237,29 +241,41 @@ Jeżeli chcesz, aby montowanie SMB było wykonywane tylko przez `presentation-ma
 systemctl disable --now mnt-presentation.mount
 ```
 
-### 5a. Przez SSH — jak skopiować pliki do kiosku
+### 5a. Przez terminal / lokalnie — jak skopiować pliki do kiosku
 
-Jeśli kopiujesz pliki z innej maszyny przez SSH, użyj `scp` i przenieś je na kiosk:
+Jeśli jesteś już zalogowany na kiosku przez terminal (np. Terminus), użyj `cp` lub `mv` do przeniesienia plików lokalnie.
+
+Jeżeli pliki znajdują się w katalogu `/tmp/` na kiosku, możesz użyć tego przykładu:
+
+```bash
+sudo cp /tmp/kiosk-manager.sh /home/kiosk/
+sudo cp /tmp/presentation-manager.sh /home/kiosk/
+sudo cp /tmp/waiting.html /home/kiosk/
+sudo cp /tmp/logo.png /home/kiosk/
+sudo chmod +x /home/kiosk/kiosk-manager.sh /home/kiosk/presentation-manager.sh
+sudo chown -R kiosk:kiosk /home/kiosk/
+
+sudo cp /tmp/kiosk.service /etc/systemd/system/kiosk.service
+sudo cp /tmp/wol-enable.service /etc/systemd/system/wol-enable.service
+sudo cp /tmp/kiosk-schedule /etc/cron.d/kiosk-schedule
+sudo chmod 644 /etc/cron.d/kiosk-schedule
+```
+
+Jeżeli masz pliki w innym katalogu na kiosku, użyj zamiast `/tmp/` odpowiedniej ścieżki do miejsca, w którym je zapisałeś.
+
+Przykład z bieżącego katalogu:
+
+```bash
+sudo cp kiosk-manager.sh presentation-manager.sh waiting.html logo.png /home/kiosk/
+```
+
+Jeśli chcesz, możesz też użyć `mv` zamiast `cp` dla plików tymczasowych.
+
+Jeżeli pliki są na innej maszynie, pozostaje opcja `scp`:
 
 ```bash
 scp kiosk-manager.sh presentation-manager.sh waiting.html logo.png kiosk.service wol-enable.service kiosk-schedule <user>@<kiosk-ip>:/tmp/
 ssh <user>@<kiosk-ip>
-```
-
-Następnie na kiosk wykonaj:
-
-```bash
-sudo mv /tmp/kiosk-manager.sh /home/kiosk/
-sudo mv /tmp/presentation-manager.sh /home/kiosk/
-sudo mv /tmp/waiting.html /home/kiosk/
-sudo mv /tmp/logo.png /home/kiosk/
-sudo chmod +x /home/kiosk/kiosk-manager.sh /home/kiosk/presentation-manager.sh
-sudo chown -R kiosk:kiosk /home/kiosk/
-
-sudo mv /tmp/kiosk.service /etc/systemd/system/kiosk.service
-sudo mv /tmp/wol-enable.service /etc/systemd/system/wol-enable.service
-sudo mv /tmp/kiosk-schedule /etc/cron.d/kiosk-schedule
-sudo chmod 644 /etc/cron.d/kiosk-schedule
 ```
 
 Po skopiowaniu i ustawieniu uprawnień uruchom:
@@ -275,20 +291,9 @@ sudo systemctl disable --now mnt-presentation.mount
 
 ## Tryb 1-ekranowy
 
-Istniejące skrypty obsługują tryb jednokanałowy bez dodatkowych plików. Ustaw `ONE_SCREEN=1` w `kiosk.service` lub przed uruchomieniem `/home/kiosk/kiosk-manager.sh`.
+Istniejące skrypty już działają w konfiguracji jednoekranowej. Krok kopiowania plików wykonaj raz w sekcji 5; ta część opisuje tylko dodatkowe ustawienia środowiska.
 
-Skopiuj pliki:
-
-```bash
-cp kiosk-manager.sh /home/kiosk/kiosk-manager.sh
-cp presentation-manager.sh /home/kiosk/presentation-manager.sh
-cp waiting.html /home/kiosk/waiting.html
-cp logo.png /home/kiosk/logo.png
-chmod +x /home/kiosk/kiosk-manager.sh /home/kiosk/presentation-manager.sh
-chown -R kiosk:kiosk /home/kiosk/
-```
-
-W `kiosk.service` dodaj:
+W `kiosk.service` możesz dodać zmienną środowiskową `ONE_SCREEN=1`, aby wymusić obsługę jednego ekranu:
 
 ```ini
 [Service]
@@ -296,50 +301,17 @@ Environment=ONE_SCREEN=1
 ExecStart=xinit /home/kiosk/kiosk-manager.sh -- :0 vt7
 ```
 
-Przeładuj systemd i uruchom serwis:
+Przeładuj systemd i zrestartuj serwis:
 
 ```bash
 systemctl daemon-reload
 systemctl restart kiosk.service
 ```
 
-Skrypt wykrywa rozdzielczość ekranu automatycznie; `SCREEN_WIDTH` lub `RES_W` można ustawić tylko w razie potrzeby.
+Skrypt wykrywa rozdzielczość ekranu automatycznie; `SCREEN_WIDTH` lub `RES_W` należy ustawiać tylko w razie potrzeby.
 
 ---
 
-## SSH i `sway-config`
-
-SSH:
-
-```bash
-apt install -y openssh-server
-systemctl enable --now ssh
-```
-
-Dodaj swój klucz do `/home/kiosk/.ssh/authorized_keys` i ustaw uprawnienia.
-
-Sway:
-
-Plik `sway-config` jest dostępny, ale obecne skrypty działają na X11. Użycie `sway` wymaga portu skryptów na Wayland.
-
----
-
-## Szybkie polecenia — drop-in systemd dla `ONE_SCREEN=1`
-
-Utwórz drop-in, przeładuj systemd i zrestartuj serwis:
-
-```bash
-mkdir -p /etc/systemd/system/kiosk.service.d
-cat > /etc/systemd/system/kiosk.service.d/one-screen.conf <<'EOF'
-[Service]
-Environment=ONE_SCREEN=1
-Environment=SCREEN_WIDTH=1920
-EOF
-systemctl daemon-reload
-systemctl restart kiosk.service
-```
-
-W normalnym trybie skrypt wykrywa szerokość ekranu automatycznie; zmiana `SCREEN_WIDTH` jest potrzebna tylko przy problemach.
 
 ### 6. Rozwiązanie problemu z domenami .local
 ```
